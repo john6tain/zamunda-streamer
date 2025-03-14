@@ -8,7 +8,7 @@ RUN npm install
 
 COPY . .
 
-COPY tmp /app/tmp
+COPY /tmp /app/tmp
 
 RUN npm run build
 
