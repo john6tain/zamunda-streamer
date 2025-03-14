@@ -3,7 +3,7 @@ import {useAuthCheck} from "@/app/hooks/useAuthCheck";
 import {Input} from "@/components/ui/input";
 import {Button} from "@/components/ui/button";
 import React, {useState} from "react";
-import {apiDelete, apiGet, apiPost} from "@/lib/apiService";
+import {apiDelete, apiGet} from "@/lib/apiService";
 import {useRouter} from "next/navigation";
 import {toast} from "sonner";
 import ListOfMovies from "@/components/listOfMovies";
@@ -11,7 +11,7 @@ import ListOfMovies from "@/components/listOfMovies";
 const Dashboard = () => {
 	const {authenticated} = useAuthCheck();
 	const [search, setSearch] = useState("");
-	const [tableData, setTableData] = useState<string[]>([]);
+	const [tableData, setTableData] = useState<TableData[]>([]);
 	const [pages, setPages] = useState(0);
 	const [activePage, setActivePage] = useState(0);
 	const [isOpen, setIsOpen] = useState(false);
@@ -22,21 +22,21 @@ const Dashboard = () => {
 
 	const logout = async () => {
 		try {
-			await apiDelete("/logout"); // Stop any active stream
+			await apiDelete("/logout");
 			toast.success("Logout successful");
 			router.push("/login");
 		} catch (error) {
-			toast.error("Error logging out:", error);
+			toast.error(`Error logging out: ${error}`, );
 		}
 	};
 
 	const kill = async () => {
 		try {
-			await apiDelete(`/stream/${fileIndex}`); // Stop any active stream
+			await apiDelete(`/stream/${fileIndex}`);
 			toast.success("Stream killed successfully");
 			setVideoReady(false)
 		} catch (error) {
-			toast.error("Error killing it:", error);
+			toast.error(`Error killing it: ${error}`, );
 		}
 	};
 
@@ -50,7 +50,7 @@ const Dashboard = () => {
 			setPages(response.pages);
 			setIsOpen(true);
 		} catch (error) {
-			toast.error("Error fetching data:", error);
+			toast.error(`Error fetching data: ${error}`);
 		}
 	};
 
@@ -60,7 +60,7 @@ const Dashboard = () => {
 			setTableData(response.files);
 			setIsOpen(true);
 		} catch (error) {
-			toast.error("Error fetching torrent:", error);
+			toast.error(`Error fetching torrent: ${error}`);
 		}
 	};
 
@@ -74,7 +74,8 @@ const Dashboard = () => {
 			setVideoReady(true);
 			setIsOpen(false);
 		} catch (error) {
-			toast.error("Error starting stream:", error);
+			toast.error(`Error starting stream:${error}`);
+
 		}
 	};
 

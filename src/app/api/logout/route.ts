@@ -6,10 +6,10 @@ import {wrapper} from 'axios-cookiejar-support'
 const cookieJar = new CookieJar();
 const client = wrapper(axios.create({jar: cookieJar, withCredentials: true}));
 
-export async function DELETE(req: Request) {
+export async function DELETE() {
 
 	try {
-		const response = await client.get('https://www.zamunda.net/logout.php', {
+		await client.get('https://www.zamunda.net/logout.php', {
 			headers: {
 				"Content-Type": "application/x-www-form-urlencoded",
 			},
@@ -17,7 +17,7 @@ export async function DELETE(req: Request) {
 			withCredentials: true,
 		});
 
-		const cookies = cookieJar.getCookiesSync('https://www.zamunda.net');
+		cookieJar.getCookiesSync('https://www.zamunda.net');
 		const res = NextResponse.json({message: 'Logout successful'}, {status: 200});
 		const cookiesToDelete = [
 			'russian_lang',

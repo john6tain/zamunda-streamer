@@ -12,7 +12,7 @@ import {
 	PaginationPrevious,
 } from "@/components/ui/pagination"
 
-const ListOfMovies = (props) => {
+const ListOfMovies = (props: ListOfMoviesProps) => {
 	const {isOpen, tableData, setIsOpen, pages, activePage, callSearch, getTorrent, startStreaming} = props;
 
 	return (
@@ -47,7 +47,7 @@ const ListOfMovies = (props) => {
 																																			downloaded,
 																																			seed
 																																		}, index) => (
-								<TableRow key={index} onClick={(e) => getTorrent(link)}>
+								<TableRow key={index} onClick={() => getTorrent(link)}>
 									<TableCell><img alt='cover' src={image}/></TableCell>
 									<TableCell>
 										<div className="flex items-center">{name}{icon1 &&
@@ -59,8 +59,8 @@ const ListOfMovies = (props) => {
 									<TableCell>{seed}</TableCell>
 								</TableRow>
 							)) || tableData.map((file, index) => (
-								<TableRow key={index} onClick={(e) => startStreaming(index)}>
-									<TableCell>{file}</TableCell>
+								<TableRow key={index} onClick={() => startStreaming(index)}>
+									<TableCell>{file.toString()}</TableCell>
 								</TableRow>
 							))}
 

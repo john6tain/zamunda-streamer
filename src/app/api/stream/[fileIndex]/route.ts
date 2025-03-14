@@ -1,12 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
+import {NextRequest, NextResponse} from "next/server";
 import peerflix from "peerflix";
 import path from "path";
 import fs from "fs";
+import Engine from "engine";
 
-let engine: any;
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ fileIndex: string }> }) {
-	const { fileIndex } = await params;
+let engine: Engine;
+
+export async function GET(req: NextRequest, {params}: { params: Promise<{ fileIndex: string }> }) {
+	const {fileIndex} = await params;
 	const fileIdx = Number(fileIndex);
 
 	const tmpDir = path.join(process.cwd(), "tmp");
@@ -14,7 +16,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ file
 
 	if (!fs.existsSync(torrentFilePath)) {
 		console.error("Torrent file not found at:", torrentFilePath);
-		return NextResponse.json({ error: "Torrent file not found" }, { status: 400 });
+		return NextResponse.json({error: "Torrent file not found"}, {status: 400});
 	}
 
 	const torrentData = fs.readFileSync(torrentFilePath);
@@ -30,7 +32,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ file
 
 		await new Promise<void>((resolve, reject) => {
 			engine.on("ready", () => {
-				console.log("Peerflix ready, files:", engine.files.map((f: any) => f.name));
+				console.log("Peerflix ready, files:", engine.files.map((f) => f.name));
 				resolve();
 			});
 			engine.on("error", (err: Error) => {
@@ -51,33 +53,39 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ file
 		return NextResponse.json({
 			message: "Streaming started for VLC",
 			url: peerflixUrl,
-			name:  file.name
+			name: file.name
 		});
 
 	} catch (error) {
-		console.error("Streaming error:", error);
-		if (engine) engine.destroy();
+		let errorMessage = "Failed to start streaming";
+		if (error instanceof Error) {
+			errorMessage = error.message;
+		}
+
 		return NextResponse.json({
 			error: "Failed to start streaming",
-			details: error.message
-		}, { status: 500 });
+			details: errorMessage,
+		}, {status: 500});
 	}
 }
 
-export async function DELETE(req: NextRequest) {
+export async function DELETE() {
 	try {
 		console.log("Stopping stream...");
 		if (engine) {
 			engine.destroy();
-			engine = null;
 		}
-		return NextResponse.json({ message: "Streaming stopped successfully" });
+		return NextResponse.json({message: "Streaming stopped successfully"});
 	} catch (error) {
-		console.error("Error stopping stream:", error);
+		let errorMessage = "Failed to stop streaming";
+		if (error instanceof Error) {
+			errorMessage = error.message;
+		}
+
 		return NextResponse.json({
 			error: "Failed to stop streaming",
-			details: error.message
-		}, { status: 500 });
+			details: errorMessage,
+		}, {status: 500});
 	}
 }
 

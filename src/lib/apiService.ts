@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, {AxiosError} from "axios";
 
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || location.origin || 'http://localhost:3000') + '/api';
 
@@ -20,7 +20,7 @@ apiClient.interceptors.response.use(
 );
 
 
-export const apiGet = async (endpoint) => {
+export const apiGet = async (endpoint: string) => {
 	try {
 		const response = await apiClient.get(endpoint);
 		return response.data;
@@ -30,32 +30,47 @@ export const apiGet = async (endpoint) => {
 };
 
 
-export const apiPost = async (endpoint, data = {}) => {
+export const apiPost = async (endpoint: string, data = {}) => {
 	try {
 		const response = await apiClient.post(endpoint, JSON.stringify(data));
 		return response.data;
 	} catch (error) {
-		throw error.response.data;
+		const axiosError = error as AxiosError; // Type assertion
+		if (axiosError.response) {
+			throw axiosError.response.data;
+		} else {
+			throw new Error("An unexpected error occurred");
+		}
 	}
 };
 
 
-export const apiPut = async (endpoint, data = {}) => {
+export const apiPut = async (endpoint: string, data = {}) => {
 	try {
 		const response = await apiClient.put(endpoint, data);
 		return response.data;
 	} catch (error) {
-		throw error;
+		const axiosError = error as AxiosError; // Type assertion
+		if (axiosError.response) {
+			throw axiosError.response.data;
+		} else {
+			throw new Error("An unexpected error occurred");
+		}
 	}
 };
 
 
-export const apiDelete = async (endpoint) => {
+export const apiDelete = async (endpoint: string) => {
 	try {
 		const response = await apiClient.delete(endpoint);
 		return response.data;
 	} catch (error) {
-		throw error;
+		const axiosError = error as AxiosError; // Type assertion
+		if (axiosError.response) {
+			throw axiosError.response.data;
+		} else {
+			throw new Error("An unexpected error occurred");
+		}
 	}
 };
 

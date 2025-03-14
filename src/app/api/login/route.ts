@@ -9,14 +9,14 @@ const client = wrapper(axios.create({jar: cookieJar, withCredentials: true}));
 
 export async function POST(req: Request) {
 	const {username, password} = await req.json();
-	console.log({username, password})
+	// console.log({username, password})
 	const formData = qs.stringify({
 		username,
 		password,
 	});
 
 	try {
-		const response = await client.post('https://www.zamunda.net/takelogin.php', formData, {
+		await client.post('https://www.zamunda.net/takelogin.php', formData, {
 			headers: {
 				"Content-Type": "application/x-www-form-urlencoded",
 			},
