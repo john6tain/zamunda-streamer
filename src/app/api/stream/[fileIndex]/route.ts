@@ -3,14 +3,15 @@ import peerflix from "peerflix";
 import path from "path";
 import fs from "fs";
 import * as os from "os";
+import Engine from "engine";
+import net from "net";
 
-
-const activeEngines = new Map<string, { engine: any; port: number }>();
+const activeEngines = new Map<string, { engine: Engine; port: number }>();
 
 function getServerIp(): string {
 	const interfaces = os.networkInterfaces();
 	const preferredInterface = process.env.NETWORK_INTERFACE || "Ethernet";
-	const preferredIp = process.env.SERVER_IP || process.env.HOST_IP; // Allow HOST_IP for Docker
+	const preferredIp = process.env.SERVER_IP || process.env.HOST_IP;
 
 	if (preferredIp) {
 		console.log(`Using preferred server IP from env: ${preferredIp}`);
@@ -54,7 +55,6 @@ function getServerIp(): string {
 }
 
 async function findAvailablePort(startPort: number = 8888): Promise<number> {
-	const net = require("net");
 	let port = startPort;
 
 	const usedPorts = Array.from(activeEngines.values()).map((entry) => entry.port);
@@ -67,10 +67,10 @@ async function findAvailablePort(startPort: number = 8888): Promise<number> {
 
 		const server = net.createServer();
 		try {
-			await new Promise((resolve, reject) => {
+			await new Promise<number>((resolve, reject) => {
 				server.once("listening", () => resolve(port));
-				server.once("error", (err: any) => {
-					if (err.code === "EADDRINUSE") resolve(null);
+				server.once("error", (err: NodeJS.ErrnoException) => {
+					if (err.code === "EADDRINUSE") resolve(0);
 					else reject(err);
 				});
 				server.listen(port);
@@ -85,7 +85,7 @@ async function findAvailablePort(startPort: number = 8888): Promise<number> {
 	throw new Error("No available ports found");
 }
 
-async function destroyEngine(engine: any): Promise<void> {
+async function destroyEngine(engine: Engine): Promise<void> {
 	return new Promise((resolve) => {
 		if (engine.server) {
 			engine.server.close(() => {
@@ -99,8 +99,7 @@ async function destroyEngine(engine: any): Promise<void> {
 	});
 }
 
-
-async function initializeEngine(torrentData: Buffer, initialPort: number) {
+async function initializeEngine(torrentData: Buffer, initialPort: number): Promise<{ engine: Engine; port: number }> {
 	let port = initialPort;
 	let attempts = 0;
 	const maxAttempts = 5;
@@ -111,13 +110,13 @@ async function initializeEngine(torrentData: Buffer, initialPort: number) {
 			port,
 			tracker: true,
 			remove: true,
-		});
+		}) as Engine;
 
 		try {
 			await Promise.race([
 				new Promise((resolve) => {
 					engine.on("ready", () => {
-						console.log("Peerflix ready, files:", engine.files.map((f: any) => f.name));
+						console.log("Peerflix ready, files:", engine.files.map((f) => f.name));
 						resolve(true);
 					});
 				}),
@@ -141,8 +140,8 @@ async function initializeEngine(torrentData: Buffer, initialPort: number) {
 			}
 
 			return { engine, port };
-		} catch (err: any) {
-			if (err.code === "EADDRINUSE") {
+		} catch (err) {
+			if ((err as NodeJS.ErrnoException).code === "EADDRINUSE") {
 				console.log(`Port ${port} in use, finding a new one...`);
 				port = await findAvailablePort(port + 1);
 				attempts++;
@@ -163,7 +162,7 @@ export async function GET(
 	const { fileIndex } = await params;
 	const fileIdx = Number(fileIndex);
 
-	const clientId = req.headers.get("x-forwarded-for") || req.ip || "unknown";
+	const clientId = req.headers.get("x-forwarded-for") || "unknown";
 	console.log(`Request from client: ${clientId}`);
 
 	const tmpDir = path.join(process.cwd(), "tmp");
@@ -180,9 +179,12 @@ export async function GET(
 	try {
 		if (activeEngines.has(clientId)) {
 			console.log(`Killing existing session for client ${clientId}...`);
-			const { engine } = activeEngines.get(clientId);
-			await destroyEngine(engine);
-			activeEngines.delete(clientId);
+			const clientEngine = activeEngines.get(clientId);
+			if (clientEngine) {
+				const { engine } = clientEngine;
+				await destroyEngine(engine);
+				activeEngines.delete(clientId);
+			}
 		}
 
 		const initialPort = await findAvailablePort(8888);
@@ -197,7 +199,7 @@ export async function GET(
 		}
 		console.log("Selected file:", file.name, "size:", file.length, "bytes");
 
-		const serverIp = getServerIp(); // Get the server's IP
+		const serverIp = getServerIp();
 		const actualPort = engine.server?.address()?.port || port;
 		const peerflixUrl = `http://${serverIp}:${actualPort}/${fileIdx}`;
 		console.log("Peerflix streaming URL:", peerflixUrl);
@@ -215,9 +217,12 @@ export async function GET(
 		console.error(`Error for client ${clientId}:`, errorMessage);
 
 		if (activeEngines.has(clientId)) {
-			const { engine } = activeEngines.get(clientId);
-			await destroyEngine(engine);
-			activeEngines.delete(clientId);
+			const clientEngine = activeEngines.get(clientId);
+			if (clientEngine) {
+				const { engine } = clientEngine;
+				await destroyEngine(engine);
+				activeEngines.delete(clientId);
+			}
 		}
 
 		return NextResponse.json(
@@ -228,15 +233,18 @@ export async function GET(
 }
 
 export async function DELETE(req: NextRequest) {
-	const clientId = req.headers.get("x-forwarded-for") || req.ip || "unknown";
+	const clientId = req.headers.get("x-forwarded-for") || "unknown";
 	console.log(`DELETE request from client: ${clientId}`);
 
 	try {
 		if (activeEngines.has(clientId)) {
 			console.log(`Stopping stream for client ${clientId}...`);
-			const { engine } = activeEngines.get(clientId);
-			await destroyEngine(engine);
-			activeEngines.delete(clientId);
+			const clientEngine = activeEngines.get(clientId);
+			if (clientEngine) {
+				const { engine } = clientEngine;
+				await destroyEngine(engine);
+				activeEngines.delete(clientId);
+			}
 			return NextResponse.json({ message: "Streaming stopped successfully" });
 		} else {
 			return NextResponse.json({ message: "No active stream found for this client" });

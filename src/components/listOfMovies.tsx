@@ -12,6 +12,8 @@ import {
 	PaginationPrevious,
 } from "@/components/ui/pagination"
 
+import Image from 'next/image'
+
 const ListOfMovies = (props: ListOfMoviesProps) => {
 	const {isOpen, tableData, setIsOpen, pages, activePage, callSearch, getTorrent, startStreaming} = props;
 
@@ -48,11 +50,11 @@ const ListOfMovies = (props: ListOfMoviesProps) => {
 																																			seed
 																																		}, index) => (
 								<TableRow key={index} onClick={() => getTorrent(link)}>
-									<TableCell><img alt='cover' src={image}/></TableCell>
+									<TableCell><Image alt='cover' src={image} height={128} width={84}/></TableCell>
 									<TableCell>
 										<div className="flex items-center">{name}{icon1 &&
-                        <img alt='subs' src={icon1} className="h-8"/>}{icon2 &&
-                        <img alt='audio' src={icon2} className="h-8"/>}</div>
+                        <Image alt='subs' src={icon1} height={32} width={32} className="h-8"/>}{icon2 &&
+                        <Image alt='audio' src={icon2} height={32} width={32} className="h-8"/>}</div>
 									</TableCell>
 									<TableCell>{size}</TableCell>
 									<TableCell>{downloaded}</TableCell>

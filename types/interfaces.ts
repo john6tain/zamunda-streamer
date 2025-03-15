@@ -1,6 +1,6 @@
 interface TableData {
 	name?: string;
-	image?: string;
+	image: string;
 	size?: string;
 	link: string;
 	icon1?: string;
