@@ -9,7 +9,7 @@ declare module 'engine' {
 		server: any;
 		torrent: any;
 		files: File[];
-		destroy: () => void;
+		destroy: (listener: (...args: any[]) => void) => void;
 		on(event: string, listener: (...args: any[]) => void): void;
 		once(event: string, listener: (...args: any[]) => void): void;
 		removeListener(event: string, listener: (...args: any[]) => void): void;

@@ -130,7 +130,7 @@ const Dashboard = () => {
               >
                   Kill
               </Button>
-              <video controls src={`http://localhost:8888/${fileIndex}`} width="640" height="360"></video>
+              <video controls src={`http://${location.hostname}:8888/${fileIndex}`} width="640" height="360"></video>
               <Button
                   type="button"
                   onClick={() => downloadM3U()}

@@ -73,7 +73,16 @@ export async function DELETE() {
 	try {
 		console.log("Stopping stream...");
 		if (engine) {
-			engine.destroy();
+			if (engine.server) {
+				engine.server.close(() => {
+					console.log('Peerflix server closed');
+				});
+			}
+
+			// Destroy the torrent engine to stop downloading/seeding
+			engine.destroy(() => {
+				console.log('Peerflix engine destroyed');
+			});
 		}
 		return NextResponse.json({message: "Streaming stopped successfully"});
 	} catch (error) {
