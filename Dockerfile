@@ -14,6 +14,6 @@ RUN npm run build
 
 # Expose ports for Next.js and Peerflix
 EXPOSE 3000
-EXPOSE 8888
+EXPOSE 8888-8898
 
 CMD ["npm", "start"]

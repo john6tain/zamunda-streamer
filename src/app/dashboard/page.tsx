@@ -17,6 +17,7 @@ const Dashboard = () => {
 	const [isOpen, setIsOpen] = useState(false);
 	const [isVideoReady, setVideoReady] = useState(false);
 	const [movieName, setMovieName] = useState(false);
+	const [streamUrl, setStreamUrl] = useState('');
 	const [fileIndex, setFileIndex] = useState(0);
 	const router = useRouter();
 
@@ -66,11 +67,11 @@ const Dashboard = () => {
 
 	const startStreaming = async (fileIndex: number) => {
 		setFileIndex(fileIndex);
-
-
 		try {
 			const response = await apiGet(`/stream/${fileIndex}`);
+			console.log(response)
 			setMovieName(response.name);
+			setStreamUrl(response.url);
 			setVideoReady(true);
 			setIsOpen(false);
 		} catch (error) {
@@ -82,7 +83,7 @@ const Dashboard = () => {
 	if (!authenticated) return null;
 
 	const downloadM3U = () => {
-		const m3uContent = `#EXTM3U\n#EXTINF:-1,${movieName}\nhttp://${location.hostname}:8888`;
+		const m3uContent = `#EXTM3U\n#EXTINF:-1,${movieName}\n${streamUrl}`;
 		const blob = new Blob([m3uContent], { type: "audio/x-mpegurl" });
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement("a");
@@ -130,13 +131,21 @@ const Dashboard = () => {
               >
                   Kill
               </Button>
-              <video controls src={`http://${location.hostname}:8888/${fileIndex}`} width="640" height="360"></video>
+              <video controls src={`${streamUrl}`} width="640" height="360"></video>
+							<div>Enter manually: {streamUrl} </div>
               <Button
                   type="button"
                   onClick={() => downloadM3U()}
                   className="w-full py-2 px-4 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 dark:bg-indigo-600 dark:hover:bg-indigo-500 mt-2"
               >
                   Open in VLC
+              </Button>
+							<Button
+                  type="button"
+                  onClick={() => setIsOpen(true)}
+                  className="w-full py-2 px-4 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 dark:bg-indigo-600 dark:hover:bg-indigo-500 mt-2"
+              >
+                  Show list again
               </Button>
           </div>}
 
