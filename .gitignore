@@ -2,8 +2,10 @@
 
 # dependencies
 /node_modules
-/tmp/*
+tmp/*
 /.pnp
+.idea
+.idea/*
 .pnp.*
 .yarn/*
 !.yarn/patches

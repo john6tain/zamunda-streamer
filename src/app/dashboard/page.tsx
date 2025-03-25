@@ -179,7 +179,7 @@ const Dashboard = () => {
               </div>
 
               <video className="mt-4" controls src={`${streamUrl}`} width="640" height="360"
-                     onEnded={async (e) => {
+                     onEnded={async () => {
 											 await startAutoPlay();
 										 }}></video>
               <div>Enter manually: {streamUrl} </div>

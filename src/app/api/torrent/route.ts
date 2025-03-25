@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
 		});
 
 		const fileList: string = await execPromise;
-		const files = fileList.trim().split("\n").map((el, index) => {
+		const files = fileList.trim().split("\n").map(el => {
 			const name = el.split(':');
 			name[0] = (Number(name[0]) + 1).toString();
 			return {
