@@ -26,7 +26,10 @@ export async function GET(req: NextRequest) {
 		withCredentials: true,
 		responseType: 'arraybuffer',
 	});
-	const tmpDir = path.join(process.cwd(), 'tmp'); // The 'tmp' folder in the project root
+	const tmpDir = path.join(process.cwd(), 'tmp');
+	if (!fs.existsSync(tmpDir)) {
+		fs.mkdirSync(tmpDir, { recursive: true });
+	}
 	const torrentFilePath = path.join(tmpDir, 'temp.torrent');
 	fs.writeFileSync(torrentFilePath, response.data);
 

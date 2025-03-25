@@ -62,8 +62,8 @@ const Dashboard = () => {
 	const getTorrent = async (url: string) => {
 		try {
 			setTorrentUrl(url);
+			const response = await apiGet(`/torrent?torrent=${encodeURIComponent(url)}`);
 			if (!localStorage.getItem(url)) {
-				const response = await apiGet(`/torrent?torrent=${encodeURIComponent(url)}`);
 				localStorage.setItem(url, JSON.stringify(response.files));
 				setTableData(response.files);
 			} else {

@@ -166,6 +166,9 @@ export async function GET(
 	console.log(`Request from client: ${clientId}`);
 
 	const tmpDir = path.join(process.cwd(), "tmp");
+	if (!fs.existsSync(tmpDir)) {
+		fs.mkdirSync(tmpDir, { recursive: true });
+	}
 	const torrentFilePath = path.join(tmpDir, "temp.torrent");
 
 	if (!fs.existsSync(torrentFilePath)) {
