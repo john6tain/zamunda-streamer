@@ -7,6 +7,7 @@ interface TableData {
 	icon2?: string;
 	downloaded?: string;
 	seed?: string;
+	watched?: boolean;
 }
 
 interface ListOfMoviesProps {

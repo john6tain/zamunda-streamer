@@ -47,7 +47,17 @@ export async function GET(req: NextRequest) {
 		});
 
 		const fileList: string = await execPromise;
-		return NextResponse.json({files: fileList.trim().split("\n")});
+		const files = fileList.trim().split("\n").map((el, index) => {
+			const name = el.split(':');
+			name[0] = (Number(name[0]) + 1).toString();
+			return {
+				name: name.join(':'),
+				watched: false,
+			}
+		})
+		return NextResponse.json({
+			files: files
+		});
 	} catch (error) {
 		console.error("Error starting Peerflix:", error);
 		return NextResponse.json({error: "Failed to start Peerflix"}, {status: 500});

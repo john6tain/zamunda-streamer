@@ -7,6 +7,8 @@ import {apiDelete, apiGet} from "@/lib/apiService";
 import {useRouter} from "next/navigation";
 import {toast} from "sonner";
 import ListOfMovies from "@/components/listOfMovies";
+import {Label} from "@/components/ui/label";
+import {Switch} from "@/components/ui/switch";
 
 const Dashboard = () => {
 	const {authenticated} = useAuthCheck();
@@ -18,6 +20,8 @@ const Dashboard = () => {
 	const [isVideoReady, setVideoReady] = useState(false);
 	const [movieName, setMovieName] = useState(false);
 	const [streamUrl, setStreamUrl] = useState('');
+	const [torrentUrl, setTorrentUrl] = useState('');
+	const [isAutoplayOn, setIsAutoplayOn] = useState(false);
 	const [fileIndex, setFileIndex] = useState(0);
 	const router = useRouter();
 
@@ -27,7 +31,7 @@ const Dashboard = () => {
 			toast.success("Logout successful");
 			router.push("/login");
 		} catch (error) {
-			toast.error(`Error logging out: ${error}`, );
+			toast.error(`Error logging out: ${error}`,);
 		}
 	};
 
@@ -37,7 +41,7 @@ const Dashboard = () => {
 			toast.success("Stream killed successfully");
 			setVideoReady(false)
 		} catch (error) {
-			toast.error(`Error killing it: ${error}`, );
+			toast.error(`Error killing it: ${error}`,);
 		}
 	};
 
@@ -57,8 +61,15 @@ const Dashboard = () => {
 
 	const getTorrent = async (url: string) => {
 		try {
-			const response = await apiGet(`/torrent?torrent=${encodeURIComponent(url)}`);
-			setTableData(response.files);
+			setTorrentUrl(url);
+			if (!localStorage.getItem(url)) {
+				const response = await apiGet(`/torrent?torrent=${encodeURIComponent(url)}`);
+				localStorage.setItem(url, JSON.stringify(response.files));
+				setTableData(response.files);
+			} else {
+				setTableData(JSON.parse(localStorage.getItem(url) as string));
+
+			}
 			setIsOpen(true);
 		} catch (error) {
 			toast.error(`Error fetching torrent: ${error}`);
@@ -66,6 +77,7 @@ const Dashboard = () => {
 	};
 
 	const startStreaming = async (fileIndex: number) => {
+		markAsWatched(fileIndex);
 		setFileIndex(fileIndex);
 		try {
 			const response = await apiGet(`/stream/${fileIndex}`);
@@ -79,12 +91,19 @@ const Dashboard = () => {
 
 		}
 	};
+	const markAsWatched = (fileIndex: number) => {
+		if (localStorage.getItem(torrentUrl)) {
+			const files = JSON.parse(localStorage.getItem(torrentUrl) as string);
+			files[fileIndex].watched = true;
+			localStorage.setItem(torrentUrl, JSON.stringify(files));
+		}
+	};
 
 	if (!authenticated) return null;
 
 	const downloadM3U = () => {
 		const m3uContent = `#EXTM3U\n#EXTINF:-1,${movieName}\n${streamUrl}`;
-		const blob = new Blob([m3uContent], { type: "audio/x-mpegurl" });
+		const blob = new Blob([m3uContent], {type: "audio/x-mpegurl"});
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement("a");
 		a.href = url;
@@ -93,6 +112,18 @@ const Dashboard = () => {
 		a.click();
 		document.body.removeChild(a);
 		URL.revokeObjectURL(url);
+	};
+
+	const startAutoPlay = async () => {
+		if (isAutoplayOn) {
+			console.log("playing next");
+			await startStreaming(fileIndex + 1);
+		}
+	};
+
+	const showList = () => {
+		setTableData(JSON.parse(localStorage.getItem(torrentUrl) as string));
+		setIsOpen(true);
 	};
 
 	return (
@@ -124,15 +155,34 @@ const Dashboard = () => {
 
 			{isVideoReady &&
           <div className="w-full max-w-sm p-[3rem] bg-white dark:bg-gray-700 rounded-lg shadow-lg relative">
-              <Button
-                  type="button"
-                  onClick={kill}
-                  className="absolute top-2 right-2 py-2 px-4 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 dark:bg-indigo-600 dark:hover:bg-indigo-500"
-              >
-                  Kill
-              </Button>
-              <video controls src={`${streamUrl}`} width="640" height="360"></video>
-							<div>Enter manually: {streamUrl} </div>
+              <div className="absolute top-2 right-2 py-2 px-4 w-full max-w-md">
+                  <div className="flex items-center justify-between w-full">
+                      <div className="invisible">
+                          <Button className="opacity-0">Kill</Button>
+                      </div>
+
+                      <div className="flex items-center space-x-2 absolute left-1/2 transform -translate-x-1/2">
+                          <Switch id="airplay-mode" checked={isAutoplayOn} onCheckedChange={() => {
+														setIsAutoplayOn(!isAutoplayOn)
+													}}/>
+                          <Label htmlFor="airplay-mode">Autoplay</Label>
+                      </div>
+
+                      <Button
+                          type="button"
+                          onClick={kill}
+                          className="bg-indigo-500 text-white rounded-md hover:bg-indigo-600 dark:bg-indigo-600 dark:hover:bg-indigo-500"
+                      >
+                          Kill
+                      </Button>
+                  </div>
+              </div>
+
+              <video className="mt-4" controls src={`${streamUrl}`} width="640" height="360"
+                     onEnded={async (e) => {
+											 await startAutoPlay();
+										 }}></video>
+              <div>Enter manually: {streamUrl} </div>
               <Button
                   type="button"
                   onClick={() => downloadM3U()}
@@ -140,9 +190,9 @@ const Dashboard = () => {
               >
                   Open in VLC
               </Button>
-							<Button
+              <Button
                   type="button"
-                  onClick={() => setIsOpen(true)}
+                  onClick={() => showList()}
                   className="w-full py-2 px-4 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 dark:bg-indigo-600 dark:hover:bg-indigo-500 mt-2"
               >
                   Show list again

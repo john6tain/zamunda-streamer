@@ -60,9 +60,20 @@ const ListOfMovies = (props: ListOfMoviesProps) => {
 									<TableCell>{downloaded}</TableCell>
 									<TableCell>{seed}</TableCell>
 								</TableRow>
-							)) || tableData.map((file, index) => (
+							)) || tableData.map((fileObj, index) => (
 								<TableRow key={index} onClick={() => startStreaming(index)}>
-									<TableCell>{file.toString()}</TableCell>
+									<TableCell>
+										<div className="flex items-center gap-x-4">
+											{fileObj.name}
+											{fileObj.watched && (<Image
+												src="/watched.svg"
+												alt="watched"
+												width={28}
+												height={28}
+												priority
+											/>)}
+										</div>
+									</TableCell>
 								</TableRow>
 							))}
 
