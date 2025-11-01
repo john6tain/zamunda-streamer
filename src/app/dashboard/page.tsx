@@ -2,13 +2,14 @@
 import {useAuthCheck} from "@/app/hooks/useAuthCheck";
 import {Input} from "@/components/ui/input";
 import {Button} from "@/components/ui/button";
-import React, {useState} from "react";
-import {apiDelete, apiGet} from "@/lib/apiService";
+import React, {useEffect, useState} from "react";
+import {apiDelete, apiGet, axiosInterceptor} from "@/lib/apiService";
 import {useRouter} from "next/navigation";
 import {toast} from "sonner";
 import ListOfMovies from "@/components/listOfMovies";
 import {Label} from "@/components/ui/label";
 import {Switch} from "@/components/ui/switch";
+import {Spinner} from "@/components/ui/spinner";
 
 const Dashboard = () => {
 	const {authenticated} = useAuthCheck();
@@ -24,6 +25,11 @@ const Dashboard = () => {
 	const [isAutoplayOn, setIsAutoplayOn] = useState(false);
 	const [fileIndex, setFileIndex] = useState(0);
 	const router = useRouter();
+	const [loading, setLoading] = useState(false);
+
+	useEffect(() => {
+		axiosInterceptor(setLoading);
+	}, [setLoading]);
 
 	const logout = async () => {
 		try {
@@ -128,6 +134,7 @@ const Dashboard = () => {
 
 	return (
 		<div>
+			{loading && <Spinner className="absolute top-2 left-2 size-8 text-indigo-600" />}
 			<Button
 				type="button"
 				onClick={logout}
