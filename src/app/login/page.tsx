@@ -9,7 +9,6 @@ import React, {useState} from 'react';
 import {useRouter} from 'next/navigation';
 import {apiPost} from "@/lib/apiService";
 import {toast} from "sonner";
-import {Spinner} from "@/components/ui/spinner";
 import SettingsAccordion from "@/components/settings-accordion";
 
 export default function LoginPage() {

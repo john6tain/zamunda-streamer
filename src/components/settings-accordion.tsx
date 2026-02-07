@@ -26,7 +26,7 @@ export default function SettingsAccordion() {
 		}
 		setUrlOption('custom');
 		setCustomUrl(normalized);
-	}, []);
+	}, [url1, url2]);
 
 	useEffect(() => {
 		const normalized = normalizeZamundaBaseUrl(selectedUrl || url1);

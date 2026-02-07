@@ -2,7 +2,7 @@
 import {useAuthCheck} from "@/app/hooks/useAuthCheck";
 import {Input} from "@/components/ui/input";
 import {Button} from "@/components/ui/button";
-import React, {useEffect, useState} from "react";
+import React, {useCallback, useEffect, useState} from "react";
 import {apiDelete, apiGet, axiosInterceptor} from "@/lib/apiService";
 import {useRouter, useSearchParams} from "next/navigation";
 import {toast} from "sonner";
@@ -67,7 +67,7 @@ const Dashboard = () => {
 		}
 	};
 
-	const getTorrent = async (url: string) => {
+	const getTorrent = useCallback(async (url: string) => {
 		try {
 			setTorrentUrl(url);
 			const response = await apiGet(`/torrent?torrent=${encodeURIComponent(url)}`);
@@ -82,7 +82,7 @@ const Dashboard = () => {
 		} catch (error) {
 			toast.error(`Error fetching torrent: ${error}`);
 		}
-	};
+	}, []);
 
 	useEffect(() => {
 		const torrentParam = searchParams.get('torrent');

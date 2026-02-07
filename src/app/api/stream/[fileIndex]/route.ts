@@ -103,7 +103,21 @@ async function initializeEngine(torrentData: Buffer, initialPort: number): Promi
 	let attempts = 0;
 	const maxAttempts = 5;
 	const mod = await import("peerflix");
-	const peerflix = (mod as { default?: typeof mod }).default ?? mod;
+	type PeerflixFn = (
+		torrent: string | Buffer,
+		options?: {
+			connections?: number;
+			port?: number;
+			path?: string;
+			verify?: boolean;
+			dht?: boolean;
+			tracker?: boolean;
+			tmp?: string;
+			buffer?: number;
+			remove?: boolean;
+		}
+	) => Engine;
+	const peerflix = (mod as unknown as { default?: PeerflixFn }).default ?? (mod as unknown as PeerflixFn);
 
 	while (attempts < maxAttempts) {
 		console.log(`Attempt ${attempts + 1}/${maxAttempts}: Initializing Peerflix on port ${port}...`);
