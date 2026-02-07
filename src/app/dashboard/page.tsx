@@ -4,7 +4,7 @@ import {Input} from "@/components/ui/input";
 import {Button} from "@/components/ui/button";
 import React, {useEffect, useState} from "react";
 import {apiDelete, apiGet, axiosInterceptor} from "@/lib/apiService";
-import {useRouter} from "next/navigation";
+import {useRouter, useSearchParams} from "next/navigation";
 import {toast} from "sonner";
 import ListOfMovies from "@/components/listOfMovies";
 import {Label} from "@/components/ui/label";
@@ -25,7 +25,9 @@ const Dashboard = () => {
 	const [isAutoplayOn, setIsAutoplayOn] = useState(false);
 	const [fileIndex, setFileIndex] = useState(0);
 	const router = useRouter();
+	const searchParams = useSearchParams();
 	const [loading, setLoading] = useState(false);
+	const [handledTorrentParam, setHandledTorrentParam] = useState(false);
 
 	useEffect(() => {
 		axiosInterceptor(setLoading);
@@ -81,6 +83,16 @@ const Dashboard = () => {
 			toast.error(`Error fetching torrent: ${error}`);
 		}
 	};
+
+	useEffect(() => {
+		const torrentParam = searchParams.get('torrent');
+		if (torrentParam && !handledTorrentParam) {
+			setHandledTorrentParam(true);
+			getTorrent(torrentParam).finally(() => {
+				router.replace('/dashboard');
+			});
+		}
+	}, [handledTorrentParam, searchParams, router, getTorrent]);
 
 	const startStreaming = async (fileIndex: number) => {
 		markAsWatched(fileIndex);

@@ -7,7 +7,7 @@ import Cookies from "js-cookie";
 import {DEFAULT_ZAMUNDA_BASE_URL, normalizeZamundaBaseUrl} from "@/lib/zamundaBaseUrl";
 
 export default function SettingsAccordion() {
-	const [urlOption, setUrlOption] = useState<'url1' | 'url2' | 'custom'>('url1');
+	const [urlOption, setUrlOption] = useState<'url1' | 'url2' | 'custom'>('url2');
 	const [customUrl, setCustomUrl] = useState('');
 	const url1 = DEFAULT_ZAMUNDA_BASE_URL;
 	const url2 = 'https://zamunda.ch';
