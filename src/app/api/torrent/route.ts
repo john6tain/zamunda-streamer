@@ -5,6 +5,7 @@ import {CookieJar} from "tough-cookie";
 import {wrapper} from "axios-cookiejar-support";
 import axios from "axios";
 import * as fs from "fs";
+import {getZamundaBaseUrlFromCookieHeader} from "@/lib/zamundaBaseUrl";
 
 const cookieJar = new CookieJar();
 const client = wrapper(axios.create({jar: cookieJar, withCredentials: true}));
@@ -12,6 +13,7 @@ const client = wrapper(axios.create({jar: cookieJar, withCredentials: true}));
 export async function GET(req: NextRequest) {
 	const {searchParams} = new URL(req.url);
 	const torrent = searchParams.get("torrent");
+	const baseUrl = getZamundaBaseUrlFromCookieHeader(req.headers.get('cookie'));
 
 	if (!torrent) {
 		return NextResponse.json({error: "No torrent link provided"}, {status: 400});
@@ -19,7 +21,7 @@ export async function GET(req: NextRequest) {
 	const cookies = req.headers.get('cookie');
 	if (cookies) {
 		cookies.split(';').forEach(cookie => {
-			cookieJar.setCookie(cookie, 'https://www.zamunda.net');
+			cookieJar.setCookie(cookie, baseUrl);
 		});
 	}
 	const response = await client.get(torrent, {

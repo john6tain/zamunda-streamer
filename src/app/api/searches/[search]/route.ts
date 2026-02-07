@@ -4,6 +4,7 @@ import {JSDOM} from 'jsdom';
 import {NextResponse} from "next/server";
 import {CookieJar} from "tough-cookie";
 import {wrapper} from "axios-cookiejar-support";
+import {getZamundaBaseUrlFromCookieHeader} from "@/lib/zamundaBaseUrl";
 
 const cookieJar = new CookieJar();
 const client = wrapper(axios.create({jar: cookieJar, withCredentials: true}));
@@ -11,14 +12,15 @@ const client = wrapper(axios.create({jar: cookieJar, withCredentials: true}));
 export async function GET(req: Request, context: { params: Promise<{ search: string }> }) {
 	try {
 		const {searchParams} = new URL(req.url);
+		const baseUrl = getZamundaBaseUrlFromCookieHeader(req.headers.get('cookie'));
 		const {search} = await context.params;
 		const page = searchParams.get('page');
 		console.log(decodeURIComponent(search));
-		const url = `https://www.zamunda.net/bananas?c5=1&c19=1&c20=1&c24=1&c25=1&c28=1&c31=1&c35=1&c42=1&c46=1&c7=1&c33=1&c55=1&search=${(decodeURIComponent(search).replace(/\s/g, '+'))}&gotonext=1&incldead=&field=name${page && ('&page=' + page) || ''}`;
+		const url = `${baseUrl}/bananas?c5=1&c19=1&c20=1&c24=1&c25=1&c28=1&c31=1&c35=1&c42=1&c46=1&c7=1&c33=1&c55=1&search=${(decodeURIComponent(search).replace(/\s/g, '+'))}&gotonext=1&incldead=&field=name${page && ('&page=' + page) || ''}`;
 		const cookies = req.headers.get('cookie');
 		if (cookies) {
 			cookies.split(';').forEach(cookie => {
-				cookieJar.setCookie(cookie, 'https://www.zamunda.net');
+				cookieJar.setCookie(cookie, baseUrl);
 			});
 		}
 		const response = await client.get(url, {
@@ -43,8 +45,8 @@ export async function GET(req: Request, context: { params: Promise<{ search: str
 
 			return {
 				name: el?.innerHTML || '',
-				link: anchorElement ? 'https://www.zamunda.net' + anchorElement.href : '',
-				image: 'https://www.zamunda.net' + imageSrc,
+				link: anchorElement ? new URL(anchorElement.href, baseUrl).toString() : '',
+				image: imageSrc ? new URL(imageSrc, baseUrl).toString() : '',
 				size: parentRow?.nextElementSibling?.nextElementSibling?.nextElementSibling?.nextElementSibling?.innerHTML?.replace('<br>', ' ') || '', // Fallback to empty string
 				downloaded: parentRow?.nextElementSibling?.nextElementSibling?.nextElementSibling?.nextElementSibling?.nextElementSibling?.innerHTML?.replace('<br>', ' ') || '', // Fallback to empty string
 				seed: parentRow?.nextElementSibling?.nextElementSibling?.nextElementSibling?.nextElementSibling?.nextElementSibling?.nextElementSibling?.querySelector('font, span')?.innerHTML?.replace('<br>', ' ') || '', // Fallback to empty string

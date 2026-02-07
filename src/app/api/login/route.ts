@@ -3,12 +3,14 @@ import axios from 'axios';
 import qs from 'qs';
 import {CookieJar} from 'tough-cookie';
 import {wrapper} from 'axios-cookiejar-support'
+import {getZamundaBaseUrlFromCookieHeader} from "@/lib/zamundaBaseUrl";
 
 const cookieJar = new CookieJar();
 const client = wrapper(axios.create({jar: cookieJar, withCredentials: true}));
 
 export async function POST(req: Request) {
 	const {username, password} = await req.json();
+	const baseUrl = getZamundaBaseUrlFromCookieHeader(req.headers.get('cookie'));
 	// console.log({username, password})
 	const formData = qs.stringify({
 		username,
@@ -16,7 +18,8 @@ export async function POST(req: Request) {
 	});
 
 	try {
-		await client.post('https://www.zamunda.net/takelogin.php', formData, {
+
+		await client.post(`${baseUrl}/takelogin.php`, formData, {
 			headers: {
 				"Content-Type": "application/x-www-form-urlencoded",
 			},
@@ -24,7 +27,7 @@ export async function POST(req: Request) {
 			withCredentials: true,
 		});
 
-		const cookies = cookieJar.getCookiesSync('https://www.zamunda.net');
+		const cookies = cookieJar.getCookiesSync(baseUrl);
 		if (!cookies.some(cookie => cookie.key === 'uid' || cookie.key === 'pass')) {
 			return NextResponse.json({error: 'Login failed. Check credentials.'}, {status: 401});
 		}

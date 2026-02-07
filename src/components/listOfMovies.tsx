@@ -14,6 +14,12 @@ import {
 
 import Image from 'next/image'
 
+const toProxyUrl = (src: string) => {
+	if (!src) return src;
+	if (src.startsWith('/')) return src;
+	return `/api/image?url=${encodeURIComponent(src)}`;
+};
+
 const ListOfMovies = (props: ListOfMoviesProps) => {
 	const {isOpen, tableData, setIsOpen, pages, activePage, callSearch, getTorrent, startStreaming} = props;
 
@@ -50,11 +56,11 @@ const ListOfMovies = (props: ListOfMoviesProps) => {
 																																			seed
 																																		}, index) => (
 								<TableRow key={index} onClick={() => getTorrent(link)}>
-									<TableCell><Image alt='cover' src={image} height={128} width={84}/></TableCell>
+									<TableCell><Image alt='cover' src={toProxyUrl(image)} height={128} width={84}/></TableCell>
 									<TableCell>
 										<div className="flex items-center">{name}{icon1 &&
-                        <Image alt='subs' src={icon1} height={32} width={32} className="h-8"/>}{icon2 &&
-                        <Image alt='audio' src={icon2} height={32} width={32} className="h-8"/>}</div>
+                        <Image alt='subs' src={toProxyUrl(icon1)} height={32} width={32} className="h-8"/>}{icon2 &&
+                        <Image alt='audio' src={toProxyUrl(icon2)} height={32} width={32} className="h-8"/>}</div>
 									</TableCell>
 									<TableCell>{size}</TableCell>
 									<TableCell>{downloaded}</TableCell>

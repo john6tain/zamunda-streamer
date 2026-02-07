@@ -2,14 +2,16 @@ import {NextResponse} from 'next/server';
 import axios from 'axios';
 import {CookieJar} from 'tough-cookie';
 import {wrapper} from 'axios-cookiejar-support'
+import {getZamundaBaseUrlFromCookieHeader} from "@/lib/zamundaBaseUrl";
 
 const cookieJar = new CookieJar();
 const client = wrapper(axios.create({jar: cookieJar, withCredentials: true}));
 
-export async function DELETE() {
+export async function DELETE(req: Request) {
+	const baseUrl = getZamundaBaseUrlFromCookieHeader(req.headers.get('cookie'));
 
 	try {
-		await client.get('https://www.zamunda.net/logout.php', {
+		await client.get(`${baseUrl}/logout.php`, {
 			headers: {
 				"Content-Type": "application/x-www-form-urlencoded",
 			},
@@ -17,7 +19,7 @@ export async function DELETE() {
 			withCredentials: true,
 		});
 
-		cookieJar.getCookiesSync('https://www.zamunda.net');
+		cookieJar.getCookiesSync(baseUrl);
 		const res = NextResponse.json({message: 'Logout successful'}, {status: 200});
 		const cookiesToDelete = [
 			'russian_lang',

@@ -5,10 +5,12 @@ import {Button} from "@/components/ui/button"
 import {Input} from "@/components/ui/input"
 import {Label} from "@/components/ui/label";
 
-import {useState} from 'react';
+import React, {useState} from 'react';
 import {useRouter} from 'next/navigation';
 import {apiPost} from "@/lib/apiService";
 import {toast} from "sonner";
+import {Spinner} from "@/components/ui/spinner";
+import SettingsAccordion from "@/components/settings-accordion";
 
 export default function LoginPage() {
 	const [username, setUsername] = useState('');
@@ -27,7 +29,9 @@ export default function LoginPage() {
 	};
 
 	return (
-		<div className="w-full max-w-sm p-8 bg-white dark:bg-gray-700 rounded-lg shadow-lg">
+		<>
+			<SettingsAccordion />
+			<div className="w-full max-w-sm p-8 bg-white dark:bg-gray-700 rounded-lg shadow-lg">
 			<h2 className="text-2xl font-bold text-center mb-6 text-white dark:text-gray-200">Login</h2>
 			<form onSubmit={handleSubmit} className="space-y-4">
 				<div>
@@ -63,7 +67,8 @@ export default function LoginPage() {
 					Login
 				</Button>
 			</form>
-		</div>
+			</div>
 
+		</>
 	);
 }

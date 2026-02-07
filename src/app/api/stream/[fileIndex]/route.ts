@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import peerflix from "peerflix";
 import path from "path";
 import fs from "fs";
 import * as os from "os";
@@ -103,6 +102,8 @@ async function initializeEngine(torrentData: Buffer, initialPort: number): Promi
 	let port = initialPort;
 	let attempts = 0;
 	const maxAttempts = 5;
+	const mod = await import("peerflix");
+	const peerflix = (mod as { default?: typeof mod }).default ?? mod;
 
 	while (attempts < maxAttempts) {
 		console.log(`Attempt ${attempts + 1}/${maxAttempts}: Initializing Peerflix on port ${port}...`);
