@@ -1,24 +1,25 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { isPublicZamundaBaseUrl } from '@/lib/zamundaBaseUrl';
 
 export function middleware(req: NextRequest) {
-	// Check if required authentication cookies are present
 	const hasAuthCookies = req.cookies.has('uid') && req.cookies.has('pass');
+	const hasDirectSource = req.cookies.has('direct_torrent_url');
+	const baseUrlCookie = req.cookies.get('zamunda_base_url')?.value;
+	const hasPublicBaseUrl = isPublicZamundaBaseUrl(baseUrlCookie);
+	const hasAccess = hasAuthCookies || hasDirectSource || hasPublicBaseUrl;
 
-	// If authenticated and trying to access login, redirect to dashboard
-	if (hasAuthCookies && req.nextUrl.pathname === '/login') {
+	if ((hasAuthCookies || hasPublicBaseUrl) && req.nextUrl.pathname === '/login') {
 		return NextResponse.redirect(new URL('/dashboard', req.url));
 	}
 
-	// If NOT authenticated and trying to access dashboard, redirect to login
-	if (!hasAuthCookies && req.nextUrl.pathname.startsWith('/dashboard')) {
+	if (!hasAccess && req.nextUrl.pathname.startsWith('/dashboard')) {
 		return NextResponse.redirect(new URL('/login', req.url));
 	}
 
-	return NextResponse.next(); // Allow other requests to continue
+	return NextResponse.next();
 }
 
-// 🔥 Apply middleware to `/dashboard` and `/login`
 export const config = {
 	matcher: ['/dashboard/:path*', '/login'],
 };

@@ -6,6 +6,13 @@ import Engine from "engine";
 import net from "net";
 
 const activeEngines = new Map<string, { engine: Engine; port: number }>();
+const TMP_DIR = path.join(process.cwd(), "tmp");
+const TEMP_TORRENT_PATH = path.join(TMP_DIR, "temp.torrent");
+const CURRENT_SOURCE_PATH = path.join(TMP_DIR, "current-source.json");
+
+type TorrentSource =
+	| { kind: "torrent-file"; path: string }
+	| { kind: "magnet"; value: string };
 
 function getServerIp(): string {
 	const interfaces = os.networkInterfaces();
@@ -98,7 +105,24 @@ async function destroyEngine(engine: Engine): Promise<void> {
 	});
 }
 
-async function initializeEngine(torrentData: Buffer, initialPort: number): Promise<{ engine: Engine; port: number }> {
+function loadCurrentSource(): Buffer | string {
+	if (fs.existsSync(CURRENT_SOURCE_PATH)) {
+		const raw = fs.readFileSync(CURRENT_SOURCE_PATH, "utf8");
+		const source = JSON.parse(raw) as TorrentSource;
+		if (source.kind === "magnet") {
+			return source.value;
+		}
+		return fs.readFileSync(source.path);
+	}
+
+	if (fs.existsSync(TEMP_TORRENT_PATH)) {
+		return fs.readFileSync(TEMP_TORRENT_PATH);
+	}
+
+	throw new Error("Torrent source not found");
+}
+
+async function initializeEngine(torrentData: Buffer | string, initialPort: number): Promise<{ engine: Engine; port: number }> {
 	let port = initialPort;
 	let attempts = 0;
 	const maxAttempts = 5;
@@ -180,21 +204,18 @@ export async function GET(
 	const clientId = req.headers.get("x-forwarded-for") || "unknown";
 	console.log(`Request from client: ${clientId}`);
 
-	const tmpDir = path.join(process.cwd(), "tmp");
-	if (!fs.existsSync(tmpDir)) {
-		fs.mkdirSync(tmpDir, { recursive: true });
+	if (!fs.existsSync(TMP_DIR)) {
+		fs.mkdirSync(TMP_DIR, { recursive: true });
 	}
-	const torrentFilePath = path.join(tmpDir, "temp.torrent");
-
-	if (!fs.existsSync(torrentFilePath)) {
-		console.error("Torrent file not found at:", torrentFilePath);
-		return NextResponse.json({ error: "Torrent file not found" }, { status: 400 });
-	}
-
-	const torrentData = fs.readFileSync(torrentFilePath);
-	console.log("Loaded torrent data, size:", torrentData.length, "bytes");
 
 	try {
+		const torrentData = loadCurrentSource();
+		if (typeof torrentData === "string") {
+			console.log("Loaded magnet source");
+		} else {
+			console.log("Loaded torrent data, size:", torrentData.length, "bytes");
+		}
+
 		if (activeEngines.has(clientId)) {
 			console.log(`Killing existing session for client ${clientId}...`);
 			const clientEngine = activeEngines.get(clientId);

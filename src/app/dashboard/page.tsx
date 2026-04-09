@@ -10,9 +10,10 @@ import ListOfMovies from "@/components/listOfMovies";
 import {Label} from "@/components/ui/label";
 import {Switch} from "@/components/ui/switch";
 import {Spinner} from "@/components/ui/spinner";
+import Cookies from "js-cookie";
 
 const Dashboard = () => {
-	const {authenticated} = useAuthCheck();
+	const {authenticated, mode} = useAuthCheck();
 	const [search, setSearch] = useState("");
 	const [tableData, setTableData] = useState<TableData[]>([]);
 	const [pages, setPages] = useState(0);
@@ -86,9 +87,11 @@ const Dashboard = () => {
 
 	useEffect(() => {
 		const torrentParam = searchParams.get('torrent');
-		if (torrentParam && !handledTorrentParam) {
+		const directCookieParam = Cookies.get('direct_torrent_url');
+		const source = torrentParam || directCookieParam;
+		if (source && !handledTorrentParam) {
 			setHandledTorrentParam(true);
-			getTorrent(torrentParam).finally(() => {
+			getTorrent(source).finally(() => {
 				router.replace('/dashboard');
 			});
 		}
@@ -150,7 +153,7 @@ const Dashboard = () => {
 			<Button
 				type="button"
 				onClick={logout}
-				className="absolute top-2 right-2 py-2 px-4 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 dark:bg-indigo-600 dark:hover:bg-indigo-500"
+				className={`absolute top-2 right-2 py-2 px-4 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 dark:bg-indigo-600 dark:hover:bg-indigo-500 ${mode !== 'auth' ? 'hidden' : ''}`}
 			>
 				Logout
 			</Button>

@@ -4,6 +4,7 @@ import {useRouter} from 'next/navigation';
 
 export function useAuthCheck() {
 	const [authenticated, setAuthenticated] = useState<boolean | null>(null);
+	const [mode, setMode] = useState<'auth' | 'direct' | 'public' | 'none'>('none');
 	const router = useRouter();
 
 	useEffect(() => {
@@ -12,9 +13,10 @@ export function useAuthCheck() {
 			const data = await res.json();
 			if (data.authenticated) {
 				setAuthenticated(true);
-				router.push('/dashboard');
+				setMode((data.mode as 'auth' | 'direct' | 'public' | 'none') || 'none');
 			} else {
 				setAuthenticated(false);
+				setMode('none');
 				router.push('/login');
 			}
 		};
@@ -22,5 +24,5 @@ export function useAuthCheck() {
 		checkAuth();
 	}, [router]);
 
-	return {authenticated};
+	return {authenticated, mode};
 }
