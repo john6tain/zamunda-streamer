@@ -4,15 +4,34 @@ import fs from "fs";
 import * as os from "os";
 import Engine from "engine";
 import net from "net";
+import { spawn, ChildProcess } from "child_process";
+import { getStreamBackendFromCookieHeader } from "@/lib/streamBackend";
 
-const activeEngines = new Map<string, { engine: Engine; port: number }>();
 const TMP_DIR = path.join(process.cwd(), "tmp");
 const TEMP_TORRENT_PATH = path.join(TMP_DIR, "temp.torrent");
 const CURRENT_SOURCE_PATH = path.join(TMP_DIR, "current-source.json");
+const CURRENT_WEBTORRENT_META_PATH = path.join(TMP_DIR, "current-webtorrent-meta.json");
+const LOCAL_WEBTORRENT_CLI_JS = path.join(process.cwd(), "node_modules", "webtorrent-cli", "bin", "cmd.js");
+const LOCAL_WEBTORRENT_BIN = path.join(
+	process.cwd(),
+	"node_modules",
+	".bin",
+	process.platform === "win32" ? "webtorrent.cmd" : "webtorrent"
+);
 
 type TorrentSource =
 	| { kind: "torrent-file"; path: string }
 	| { kind: "magnet"; value: string };
+
+type PeerflixSession = { backend: "peerflix"; engine: Engine; port: number };
+type WebTorrentSession = { backend: "webtorrent"; process: ChildProcess; port: number };
+type ActiveSession = PeerflixSession | WebTorrentSession;
+
+const activeSessions = new Map<string, ActiveSession>();
+
+function stripAnsi(input: string): string {
+	return input.replace(/\x1b\[[0-9;]*m/g, "");
+}
 
 function getServerIp(): string {
 	const interfaces = os.networkInterfaces();
@@ -20,7 +39,6 @@ function getServerIp(): string {
 	const preferredIp = process.env.SERVER_IP || process.env.HOST_IP;
 
 	if (preferredIp) {
-		console.log(`Using preferred server IP from env: ${preferredIp}`);
 		return preferredIp;
 	}
 
@@ -34,36 +52,29 @@ function getServerIp(): string {
 		}
 	}
 
-	console.log("Available network interfaces:", availableInterfaces);
-
 	if (preferredInterface && availableInterfaces[preferredInterface]) {
-		console.log(`Using IP from preferred interface ${preferredInterface}: ${availableInterfaces[preferredInterface][0]}`);
 		return availableInterfaces[preferredInterface][0];
 	}
 
 	for (const name of Object.keys(availableInterfaces)) {
 		const ip = availableInterfaces[name][0];
 		if (ip.startsWith("192.168.")) {
-			console.log(`Using LAN IP: ${ip} from ${name}`);
 			return ip;
 		}
 	}
 
 	for (const name of Object.keys(availableInterfaces)) {
 		if (availableInterfaces[name].length > 0) {
-			console.log(`Using first available IP: ${availableInterfaces[name][0]} from ${name}`);
 			return availableInterfaces[name][0];
 		}
 	}
 
-	console.log("No external IPs found, falling back to 127.0.0.1");
 	return "127.0.0.1";
 }
 
 async function findAvailablePort(startPort: number = 8888): Promise<number> {
 	let port = startPort;
-
-	const usedPorts = Array.from(activeEngines.values()).map((entry) => entry.port);
+	const usedPorts = Array.from(activeSessions.values()).map((entry) => entry.port);
 
 	while (port <= 65535) {
 		if (usedPorts.includes(port)) {
@@ -83,26 +94,45 @@ async function findAvailablePort(startPort: number = 8888): Promise<number> {
 			});
 			server.close();
 			return port;
-		} catch (err) {
-			console.error(`Error testing port ${port}:`, err);
+		} catch {
 			port++;
 		}
 	}
 	throw new Error("No available ports found");
 }
 
-async function destroyEngine(engine: Engine): Promise<void> {
+async function destroyPeerflixEngine(engine: Engine): Promise<void> {
 	return new Promise((resolve) => {
 		if (engine.server) {
-			engine.server.close(() => {
-				console.log("Peerflix server closed");
-			});
+			engine.server.close(() => undefined);
 		}
-		engine.destroy(() => {
-			console.log("Peerflix engine destroyed");
-			resolve();
-		});
+		engine.destroy(() => resolve());
 	});
+}
+
+async function destroyWebTorrentSession(session: WebTorrentSession): Promise<void> {
+	await new Promise<void>((resolve) => {
+		if (session.process.killed) {
+			resolve();
+			return;
+		}
+		session.process.once("exit", () => resolve());
+		session.process.kill();
+		setTimeout(() => {
+			if (!session.process.killed) {
+				session.process.kill("SIGKILL");
+			}
+			resolve();
+		}, 1500);
+	});
+}
+
+async function destroySession(session: ActiveSession): Promise<void> {
+	if (session.backend === "peerflix") {
+		await destroyPeerflixEngine(session.engine);
+		return;
+	}
+	await destroyWebTorrentSession(session);
 }
 
 function loadCurrentSource(): Buffer | string {
@@ -122,7 +152,39 @@ function loadCurrentSource(): Buffer | string {
 	throw new Error("Torrent source not found");
 }
 
-async function initializeEngine(torrentData: Buffer | string, initialPort: number): Promise<{ engine: Engine; port: number }> {
+function loadWebTorrentMeta(): { infoHash?: string; files: Array<{ index: number; path: string }> } | null {
+	if (!fs.existsSync(CURRENT_WEBTORRENT_META_PATH)) {
+		console.log("[webtorrent][meta] file missing", { path: CURRENT_WEBTORRENT_META_PATH });
+		return null;
+	}
+	try {
+		const raw = fs.readFileSync(CURRENT_WEBTORRENT_META_PATH, "utf8");
+		const parsed = JSON.parse(raw) as { infoHash?: string; files?: Array<{ index: number; path: string }> };
+		if (!Array.isArray(parsed.files)) {
+			console.log("[webtorrent][meta] invalid files payload", { path: CURRENT_WEBTORRENT_META_PATH });
+			return null;
+		}
+		console.log("[webtorrent][meta] loaded", {
+			path: CURRENT_WEBTORRENT_META_PATH,
+			infoHash: parsed.infoHash || null,
+			filesCount: parsed.files.length,
+			firstFile: parsed.files[0]?.path || null,
+		});
+		return {
+			infoHash: parsed.infoHash,
+			files: parsed.files,
+		};
+	} catch {
+		console.log("[webtorrent][meta] parse error", { path: CURRENT_WEBTORRENT_META_PATH });
+		return null;
+	}
+}
+
+function buildWebTorrentStreamPath(infoHash: string, filePath: string): string {
+	return `/webtorrent/${encodeURIComponent(infoHash)}/${encodeURI(filePath)}`;
+}
+
+async function initializePeerflixEngine(torrentData: Buffer | string, initialPort: number): Promise<{ engine: Engine; port: number }> {
 	let port = initialPort;
 	let attempts = 0;
 	const maxAttempts = 5;
@@ -144,7 +206,6 @@ async function initializeEngine(torrentData: Buffer | string, initialPort: numbe
 	const peerflix = (mod as unknown as { default?: PeerflixFn }).default ?? (mod as unknown as PeerflixFn);
 
 	while (attempts < maxAttempts) {
-		console.log(`Attempt ${attempts + 1}/${maxAttempts}: Initializing Peerflix on port ${port}...`);
 		const engine = peerflix(torrentData, {
 			port,
 			tracker: true,
@@ -153,25 +214,9 @@ async function initializeEngine(torrentData: Buffer | string, initialPort: numbe
 
 		try {
 			await Promise.race([
-				new Promise((resolve) => {
-					engine.on("ready", () => {
-						console.log("Peerflix ready, files:", engine.files.map((f) => f.name));
-						resolve(true);
-					});
-				}),
-				new Promise((_, reject) => {
-					engine.on("error", (err: Error) => {
-						console.error(`Peerflix error on port ${port}:`, err);
-						reject(err);
-					});
-				}),
-				new Promise((resolve) => {
-					engine.on("listening", () => {
-						const address = engine.server?.address();
-						console.log("Peerflix server listening on port:", address?.port);
-						resolve(true);
-					});
-				}),
+				new Promise((resolve) => engine.on("ready", () => resolve(true))),
+				new Promise((_, reject) => engine.on("error", (err: Error) => reject(err))),
+				new Promise((resolve) => engine.on("listening", () => resolve(true))),
 			]);
 
 			if (!engine.server || !engine.server.listening) {
@@ -181,17 +226,112 @@ async function initializeEngine(torrentData: Buffer | string, initialPort: numbe
 			return { engine, port };
 		} catch (err) {
 			if ((err as NodeJS.ErrnoException).code === "EADDRINUSE") {
-				console.log(`Port ${port} in use, finding a new one...`);
 				port = await findAvailablePort(port + 1);
 				attempts++;
-				await destroyEngine(engine);
+				await destroyPeerflixEngine(engine);
 			} else {
-				await destroyEngine(engine);
+				await destroyPeerflixEngine(engine);
 				throw err;
 			}
 		}
 	}
 	throw new Error(`Failed to bind Peerflix after ${maxAttempts} attempts`);
+}
+
+function spawnWebTorrentCli(args: string[]): ChildProcess {
+	console.log("[webtorrent][stream] spawn cli", { args });
+	if (fs.existsSync(LOCAL_WEBTORRENT_CLI_JS)) {
+		return spawn(process.execPath, [LOCAL_WEBTORRENT_CLI_JS, ...args], {
+			cwd: process.cwd(),
+			env: process.env,
+			stdio: ["ignore", "pipe", "pipe"],
+		});
+	}
+
+	const bin = fs.existsSync(LOCAL_WEBTORRENT_BIN) ? LOCAL_WEBTORRENT_BIN : "webtorrent";
+	return spawn(bin, args, {
+		cwd: process.cwd(),
+		env: process.env,
+		stdio: ["ignore", "pipe", "pipe"],
+		shell: process.platform === "win32",
+	});
+}
+
+async function initializeWebTorrentSession(
+	torrentSource: string,
+	initialPort: number,
+	fileIdx: number,
+	preferredPath?: string
+): Promise<{ session: WebTorrentSession; streamUrl: string; fileName: string }> {
+	const args = [
+		"download",
+		torrentSource,
+		"--select",
+		String(fileIdx),
+		"--port",
+		String(initialPort),
+		"--out",
+		TMP_DIR,
+		"--keep-seeding",
+		"--no-quit",
+	];
+
+	const child = spawnWebTorrentCli(args);
+	console.log("[webtorrent][stream] session init", {
+		fileIdx,
+		initialPort,
+		hasPreferredPath: Boolean(preferredPath),
+		preferredPath: preferredPath || null,
+	});
+
+	return await new Promise((resolve, reject) => {
+		let settled = false;
+		let errLog = "";
+		const timeout = setTimeout(() => {
+			if (settled) return;
+			settled = true;
+			child.kill();
+			reject(new Error(`WebTorrent CLI startup timeout. ${errLog}`.trim()));
+		}, 20000);
+
+		child.stdout?.on("data", (buf: Buffer) => {
+			const text = stripAnsi(buf.toString());
+			if (/Error:/i.test(text)) {
+				errLog += text;
+			}
+		});
+
+		child.stderr?.on("data", (buf: Buffer) => {
+			const text = stripAnsi(buf.toString());
+			errLog += text;
+		});
+
+		child.on("exit", (code) => {
+			if (settled) return;
+			settled = true;
+			clearTimeout(timeout);
+			reject(new Error(`WebTorrent CLI exited early with code ${code}. ${errLog}`.trim()));
+		});
+
+		setTimeout(() => {
+			if (settled) return;
+			settled = true;
+			clearTimeout(timeout);
+			if (!preferredPath) {
+				console.log("[webtorrent][stream] missing preferredPath", { fileIdx, initialPort });
+				child.kill();
+				reject(new Error("Missing WebTorrent file path metadata for selected file."));
+				return;
+			}
+			const streamUrl = `http://localhost:${initialPort}${preferredPath}`;
+			console.log("[webtorrent][stream] stream url built", { streamUrl });
+			resolve({
+				session: { backend: "webtorrent", process: child, port: initialPort },
+				streamUrl,
+				fileName: `Selected file ${fileIdx + 1}`,
+			});
+		}, 15000);
+	});
 }
 
 export async function GET(
@@ -200,9 +340,8 @@ export async function GET(
 ) {
 	const { fileIndex } = await params;
 	const fileIdx = Number(fileIndex);
-
 	const clientId = req.headers.get("x-forwarded-for") || "unknown";
-	console.log(`Request from client: ${clientId}`);
+	const backend = getStreamBackendFromCookieHeader(req.headers.get("cookie"));
 
 	if (!fs.existsSync(TMP_DIR)) {
 		fs.mkdirSync(TMP_DIR, { recursive: true });
@@ -210,62 +349,69 @@ export async function GET(
 
 	try {
 		const torrentData = loadCurrentSource();
-		if (typeof torrentData === "string") {
-			console.log("Loaded magnet source");
-		} else {
-			console.log("Loaded torrent data, size:", torrentData.length, "bytes");
-		}
+		const torrentSource = typeof torrentData === "string" ? torrentData : TEMP_TORRENT_PATH;
 
-		if (activeEngines.has(clientId)) {
-			console.log(`Killing existing session for client ${clientId}...`);
-			const clientEngine = activeEngines.get(clientId);
-			if (clientEngine) {
-				const { engine } = clientEngine;
-				await destroyEngine(engine);
-				activeEngines.delete(clientId);
-			}
+		if (activeSessions.has(clientId)) {
+			const existing = activeSessions.get(clientId)!;
+			await destroySession(existing);
+			activeSessions.delete(clientId);
 		}
 
 		const initialPort = await findAvailablePort(8888);
-		console.log(`Assigned initial port ${initialPort} for client ${clientId}`);
+		const serverIp = getServerIp();
 
-		const { engine, port } = await initializeEngine(torrentData, initialPort);
-		activeEngines.set(clientId, { engine, port });
+		if (backend === "webtorrent") {
+			const meta = loadWebTorrentMeta();
+			const preferredFilePath = meta?.files.find((f) => f.index === fileIdx)?.path;
+			const preferredPath = meta?.infoHash && preferredFilePath
+				? buildWebTorrentStreamPath(meta.infoHash, preferredFilePath)
+				: undefined;
+			console.log("[webtorrent][stream] file selection", {
+				requestedIndex: fileIdx,
+				metaInfoHash: meta?.infoHash || null,
+				metaFilesCount: meta?.files.length || 0,
+				preferredFilePath: preferredFilePath || null,
+				preferredPath: preferredPath || null,
+			});
+			const { session, streamUrl, fileName } = await initializeWebTorrentSession(torrentSource, initialPort, fileIdx, preferredPath);
+			activeSessions.set(clientId, session);
+			return NextResponse.json({
+				message: "Streaming started for WebTorrent",
+				url: streamUrl.replace("localhost", serverIp),
+				name: fileName,
+				backend: "webtorrent",
+			});
+		}
+
+		const { engine, port } = await initializePeerflixEngine(torrentData, initialPort);
+		const peerflixSession: PeerflixSession = { backend: "peerflix", engine, port };
+		activeSessions.set(clientId, peerflixSession);
 
 		const file = engine.files[fileIdx];
 		if (!file) {
 			throw new Error(`File at index ${fileIdx} not found`);
 		}
-		console.log("Selected file:", file.name, "size:", file.length, "bytes");
 
-		const serverIp = getServerIp();
 		const actualPort = engine.server?.address()?.port || port;
 		const peerflixUrl = `http://${serverIp}:${actualPort}/${fileIdx}`;
-		console.log("Peerflix streaming URL:", peerflixUrl);
-
 		return NextResponse.json({
-			message: "Streaming started for VLC",
+			message: "Streaming started for Peerflix",
 			url: peerflixUrl,
 			name: file.name,
+			backend: "peerflix",
 		});
 	} catch (error) {
-		let errorMessage = "Failed to start streaming";
-		if (error instanceof Error) {
-			errorMessage = error.message;
-		}
+		const errorMessage = error instanceof Error ? error.message : "Failed to start streaming";
 		console.error(`Error for client ${clientId}:`, errorMessage);
 
-		if (activeEngines.has(clientId)) {
-			const clientEngine = activeEngines.get(clientId);
-			if (clientEngine) {
-				const { engine } = clientEngine;
-				await destroyEngine(engine);
-				activeEngines.delete(clientId);
-			}
+		if (activeSessions.has(clientId)) {
+			const session = activeSessions.get(clientId)!;
+			await destroySession(session);
+			activeSessions.delete(clientId);
 		}
 
 		return NextResponse.json(
-			{ error: "Failed to start streaming", details: errorMessage },
+			{ error: "Failed to start streaming", details: errorMessage, backend },
 			{ status: 500 }
 		);
 	}
@@ -273,27 +419,17 @@ export async function GET(
 
 export async function DELETE(req: NextRequest) {
 	const clientId = req.headers.get("x-forwarded-for") || "unknown";
-	console.log(`DELETE request from client: ${clientId}`);
 
 	try {
-		if (activeEngines.has(clientId)) {
-			console.log(`Stopping stream for client ${clientId}...`);
-			const clientEngine = activeEngines.get(clientId);
-			if (clientEngine) {
-				const { engine } = clientEngine;
-				await destroyEngine(engine);
-				activeEngines.delete(clientId);
-			}
+		if (activeSessions.has(clientId)) {
+			const session = activeSessions.get(clientId)!;
+			await destroySession(session);
+			activeSessions.delete(clientId);
 			return NextResponse.json({ message: "Streaming stopped successfully" });
-		} else {
-			return NextResponse.json({ message: "No active stream found for this client" });
 		}
+		return NextResponse.json({ message: "No active stream found for this client" });
 	} catch (error) {
-		let errorMessage = "Failed to stop streaming";
-		if (error instanceof Error) {
-			errorMessage = error.message;
-		}
-		console.error(`Error stopping stream for client ${clientId}:`, errorMessage);
+		const errorMessage = error instanceof Error ? error.message : "Failed to stop streaming";
 		return NextResponse.json(
 			{ error: "Failed to stop streaming", details: errorMessage },
 			{ status: 500 }

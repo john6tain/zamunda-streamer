@@ -6,10 +6,12 @@ import {Input} from "@/components/ui/input";
 import Cookies from "js-cookie";
 import {DEFAULT_ZAMUNDA_BASE_URL, normalizeZamundaBaseUrl} from "@/lib/zamundaBaseUrl";
 import {usePathname, useRouter} from "next/navigation";
+import {DEFAULT_STREAM_BACKEND, normalizeStreamBackend, StreamBackend} from "@/lib/streamBackend";
 
 export default function SettingsAccordion() {
     const [urlOption, setUrlOption] = useState<'url1' | 'url2' | 'url3' | 'custom' | 'magnet'>('url2');
     const [customUrl, setCustomUrl] = useState('');
+    const [streamBackend, setStreamBackend] = useState<StreamBackend>(DEFAULT_STREAM_BACKEND);
     const router = useRouter();
     const pathname = usePathname();
     const url1 = DEFAULT_ZAMUNDA_BASE_URL;
@@ -49,6 +51,12 @@ export default function SettingsAccordion() {
     }, [url1, url2, url3]);
 
     useEffect(() => {
+        const backendCookie = Cookies.get('stream_backend');
+        const normalizedBackend = normalizeStreamBackend(backendCookie);
+        setStreamBackend(normalizedBackend);
+    }, []);
+
+    useEffect(() => {
         if (urlOption === 'magnet') {
             if (customUrl.trim()) {
                 Cookies.set('direct_torrent_url', customUrl.trim(), {sameSite: 'lax', path: '/'});
@@ -63,6 +71,10 @@ export default function SettingsAccordion() {
             setCustomUrl(normalized);
         }
     }, [customUrl, selectedUrl, url1, urlOption]);
+
+    useEffect(() => {
+        Cookies.set('stream_backend', streamBackend, {sameSite: 'lax', path: '/'});
+    }, [streamBackend]);
 
     useEffect(() => {
         if (urlOption === 'url3' && pathname === '/login') {
@@ -176,6 +188,29 @@ export default function SettingsAccordion() {
                         )}
                         <div className="text-xs text-gray-500 dark:text-gray-300">
                             Selected: {selectedUrl || '-'}
+                        </div>
+                        <div className="border-t border-gray-200 pt-3 dark:border-gray-600">
+                            <div className="mb-1 text-xs font-semibold text-gray-500 dark:text-gray-300">Streaming backend</div>
+                            <label
+                                className="flex items-center gap-2 rounded-md border border-transparent px-2 py-1 hover:border-gray-200 dark:hover:border-gray-500">
+                                <input
+                                    type="radio"
+                                    name="stream-backend"
+                                    checked={streamBackend === 'peerflix'}
+                                    onChange={() => setStreamBackend('peerflix')}
+                                />
+                                <span>Peerflix</span>
+                            </label>
+                            <label
+                                className="flex items-center gap-2 rounded-md border border-transparent px-2 py-1 hover:border-gray-200 dark:hover:border-gray-500">
+                                <input
+                                    type="radio"
+                                    name="stream-backend"
+                                    checked={streamBackend === 'webtorrent'}
+                                    onChange={() => setStreamBackend('webtorrent')}
+                                />
+                                <span>WebTorrent</span>
+                            </label>
                         </div>
                     </div>
                 </Accordion.Content>

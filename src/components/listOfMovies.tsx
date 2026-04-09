@@ -22,6 +22,8 @@ const toProxyUrl = (src: string) => {
 
 const ListOfMovies = (props: ListOfMoviesProps) => {
 	const {isOpen, tableData, setIsOpen, pages, activePage, callSearch, getTorrent, startStreaming} = props;
+	const isSearchResults = tableData.some((data) => typeof data.link === 'string' && data.link.trim().length > 0);
+	const hasImageColumn = tableData.some((data) => Boolean(data.image));
 
 	return (
 		<div>
@@ -37,15 +39,15 @@ const ListOfMovies = (props: ListOfMoviesProps) => {
 					<Table className="mt-2 w-full">
 						<TableHeader>
 							<TableRow>
-								{tableData.some(data => data.image) && <TableHead className="w-[100px]">Image</TableHead>}
+								{hasImageColumn && <TableHead className="w-[100px]">Image</TableHead>}
 								<TableHead>Name</TableHead>
-								{tableData.some(data => data.image) && <TableHead>Size</TableHead>}
-								{tableData.some(data => data.image) && <TableHead>Downloaded</TableHead>}
-								{tableData.some(data => data.image) && <TableHead>Seed</TableHead>}
+								{isSearchResults && <TableHead>Size</TableHead>}
+								{isSearchResults && <TableHead>Downloaded</TableHead>}
+								{isSearchResults && <TableHead>Seed</TableHead>}
 							</TableRow>
 						</TableHeader>
 						<TableBody>
-							{tableData.some(data => data.image) && tableData.map(({
+							{isSearchResults && tableData.map(({
 																																			name,
 																																			image,
 																																			size,
@@ -56,7 +58,11 @@ const ListOfMovies = (props: ListOfMoviesProps) => {
 																																			seed
 																																		}, index) => (
 								<TableRow key={index} onClick={() => getTorrent(link)}>
-									<TableCell><Image alt='cover' src={toProxyUrl(image)} height={128} width={84}/></TableCell>
+									{hasImageColumn && (
+										<TableCell>
+											{image ? <Image alt='cover' src={toProxyUrl(image)} height={128} width={84}/> : null}
+										</TableCell>
+									)}
 									<TableCell>
 										<div className="flex items-center">{name}{icon1 &&
                         <Image alt='subs' src={toProxyUrl(icon1)} height={32} width={32} className="h-8"/>}{icon2 &&
